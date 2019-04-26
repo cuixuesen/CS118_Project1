@@ -10,6 +10,7 @@
 #include <math.h>
 
 int main(int argc, char** argv) {
+    //Set up the socket
     int sockfd, newsockfd;
     socklen_t clilen;
     struct sockaddr_in serv_addr, cli_addr;
@@ -24,34 +25,35 @@ int main(int argc, char** argv) {
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(atoi(argv[1]));
-    
+
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
         fprintf(stderr, "Unable to bind socket");
-    
+
     listen(sockfd, 1);
-    
+
     while(1) {
         newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
         if (newsockfd < 0)
             fprintf(stderr, "Unable to accept connection.");
-        
+
         char request[2000];
         memset(request, 0, 2000);
-        
+
         ssize_t n = read(newsockfd, request, 2000);
         if (n < 0) {
             fprintf(stderr, "Error on reading.");
             close(newsockfd);
             continue;
         }
+        // Print out the http request message
         write(0, request, strlen(request));
-        
-        
+
+
         char file_name[2000];
         memset(file_name, 0, 2000);
-        
-        
-        // Get the file name
+
+
+        // Get the file name starting from index 5
         int i=5,j=0;
         while(request[i] != ' ' && i < 2000 && i+1 < 2000 && i+2 < 2000){
 
@@ -61,25 +63,25 @@ int main(int argc, char** argv) {
             }
             else{
                 file_name[j++]=request[i++];
-               
+
             }
         }
-	
-        
+
+        // Open the file, if not founded then reponse 404 message
         FILE *myfile;
         myfile=fopen(file_name,"r");
         if (myfile == NULL){
-            
+
             char *reponse_header="HTTP/1.1 404 Not Found\r\nConnection: close\r\nServer: Apache\r\nContent-Type: text/html\r\n\r\n <title>Page not found</title> <h1>404</h1>";
             write(newsockfd, reponse_header, strlen(reponse_header));
-            
+
         }
         else {
-            
+
             char *reponse_type=NULL;
             char *extention = strrchr (file_name, '.');
-          
-            
+
+            // Check the file extension
             if (extention == NULL){
                          reponse_type="Content-Type: application/octet-stream\r\n\r\n";
             }
@@ -97,23 +99,23 @@ int main(int argc, char** argv) {
                          reponse_type="Content-Type: image/gif\r\n\r\n";
             }
             else {
-                
+
                         char *reponse_header_h1="HTTP/1.1 404 Not Found\r\nContent-Length: 75\r\nConnection: close\r\nServer: Apache\r\nContent-Type: text/html\r\n\r\n <title>File not found</title> <h1>The file enxtension is not avaiable</h1>";
                         write(newsockfd, reponse_header_h1, strlen(reponse_header_h1));
                         close(newsockfd);
                         continue;
-                
+
             }
-            
-            //Get the file size
+
+            //Get the file size and put http reponse message to the socket
             struct stat st;
             stat(file_name, &st);
             char *reponse_header=malloc(3000);
             sprintf(reponse_header, "HTTP/1.1 200 OK\r\nContent-Length: %ld\r\nConnection: close\r\nServer: Apache\r\nDate: Wed, 27 Mar 2019 08:38:00 GMT\r\nLast-Modified: Wed, 27 Mar 2019 08:38:00 GMT\r\n%s", st.st_size,reponse_type);
-            
+
             write(newsockfd, reponse_header, strlen(reponse_header));
-            
-            //Write file to the scoket
+
+            //Write reponse file to the scoket
             char reponsefile[9000];
             while(fread(reponsefile,1,sizeof(reponsefile),myfile) > 0) {
                 if (write(newsockfd, reponsefile,sizeof(reponsefile)) < 0 ){
@@ -122,18 +124,15 @@ int main(int argc, char** argv) {
                     continue;
                 }
                 memset(reponsefile, 0, 9000);
-                
+
             }
-	    fclose(myfile);
+	          fclose(myfile);
         }
-	 
-        close(newsockfd);
-        
-        
+
+            close(newsockfd);
+
+
     }
     close(sockfd);
 
 }
-
-
-
